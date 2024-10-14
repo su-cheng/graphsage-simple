@@ -25,7 +25,7 @@ class SupervisedGraphSage(nn.Module):
         self.xent = nn.CrossEntropyLoss()
 
         self.weight = nn.Parameter(torch.FloatTensor(num_classes, enc.embed_dim))
-        init.xavier_uniform(self.weight)
+        init.xavier_uniform_(self.weight)
 
     def forward(self, nodes):
         embeds = self.enc(nodes)
@@ -46,7 +46,7 @@ def load_cora():
     with open("cora/cora.content") as fp:
         for i,line in enumerate(fp):
             info = line.strip().split()
-            feat_data[i,:] = map(float, info[1:-1])
+            feat_data[i,:] = list(map(float, info[1:-1]))
             node_map[info[0]] = i
             if not info[-1] in label_map:
                 label_map[info[-1]] = len(label_map)
@@ -71,15 +71,16 @@ def run_cora():
     features.weight = nn.Parameter(torch.FloatTensor(feat_data), requires_grad=False)
    # features.cuda()
 
-    agg1 = MeanAggregator(features, cuda=True)
-    enc1 = Encoder(features, 1433, 128, adj_lists, agg1, gcn=True, cuda=False)
+    # 相当于训练深度是2，K=2
+    agg1 = MeanAggregator(features, cuda=False)
+    enc1 = Encoder(features, 1433, 128, adj_lists, agg1, gcn=False, cuda=False)
     agg2 = MeanAggregator(lambda nodes : enc1(nodes).t(), cuda=False)
     enc2 = Encoder(lambda nodes : enc1(nodes).t(), enc1.embed_dim, 128, adj_lists, agg2,
-            base_model=enc1, gcn=True, cuda=False)
+            base_model=enc1, gcn=False, cuda=False)
     enc1.num_samples = 5
     enc2.num_samples = 5
 
-    graphsage = SupervisedGraphSage(7, enc2)
+    graphsage = SupervisedGraphSage(7, enc3)
 #    graphsage.cuda()
     rand_indices = np.random.permutation(num_nodes)
     test = rand_indices[:1000]
@@ -99,11 +100,11 @@ def run_cora():
         optimizer.step()
         end_time = time.time()
         times.append(end_time-start_time)
-        print batch, loss.data[0]
+        print (batch, loss.item())
 
     val_output = graphsage.forward(val) 
-    print "Validation F1:", f1_score(labels[val], val_output.data.numpy().argmax(axis=1), average="micro")
-    print "Average batch time:", np.mean(times)
+    print ("Validation F1:", f1_score(labels[val], val_output.data.numpy().argmax(axis=1), average="micro"))
+    print ("Average batch time:", np.mean(times))
 
 def load_pubmed():
     #hardcoded for simplicity...
@@ -143,7 +144,7 @@ def run_pubmed():
     features.weight = nn.Parameter(torch.FloatTensor(feat_data), requires_grad=False)
    # features.cuda()
 
-    agg1 = MeanAggregator(features, cuda=True)
+    agg1 = MeanAggregator(features, cuda=False)
     enc1 = Encoder(features, 500, 128, adj_lists, agg1, gcn=True, cuda=False)
     agg2 = MeanAggregator(lambda nodes : enc1(nodes).t(), cuda=False)
     enc2 = Encoder(lambda nodes : enc1(nodes).t(), enc1.embed_dim, 128, adj_lists, agg2,
@@ -171,11 +172,12 @@ def run_pubmed():
         optimizer.step()
         end_time = time.time()
         times.append(end_time-start_time)
-        print batch, loss.data[0]
+        print (batch, loss.item())
 
     val_output = graphsage.forward(val) 
-    print "Validation F1:", f1_score(labels[val], val_output.data.numpy().argmax(axis=1), average="micro")
-    print "Average batch time:", np.mean(times)
+    print ("Validation F1:", f1_score(labels[val], val_output.data.numpy().argmax(axis=1), average="micro"))
+    print ("Average batch time:", np.mean(times))
 
 if __name__ == "__main__":
     run_cora()
+    #run_pubmed()

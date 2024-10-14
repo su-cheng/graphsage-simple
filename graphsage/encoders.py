@@ -28,7 +28,7 @@ class Encoder(nn.Module):
         self.aggregator.cuda = cuda
         self.weight = nn.Parameter(
                 torch.FloatTensor(embed_dim, self.feat_dim if self.gcn else 2 * self.feat_dim))
-        init.xavier_uniform(self.weight)
+        init.xavier_uniform_(self.weight)
 
     def forward(self, nodes):
         """
@@ -47,4 +47,6 @@ class Encoder(nn.Module):
         else:
             combined = neigh_feats
         combined = F.relu(self.weight.mm(combined.t()))
+        # L2范数归一化
+        combined = F.normalize(combined, p=2, dim=0)
         return combined
